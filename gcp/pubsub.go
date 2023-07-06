@@ -27,23 +27,25 @@ func NewPubSubService(project, topic, subscription string, ctx context.Context) 
 	}
 }
 
-func (p *PubSubService) WriteMessages(messages []string) {
+func (p *PubSubService) WriteMessage(message string) (resp *pubsub.PublishResponse, err error) {
 	if p.err != nil {
 		return
 	}
-	// write messages to the topic
-	for _, message := range messages {
-		// publish the message to the topic
-		_, err := p.service.Projects.Topics.Publish(p.topic, &pubsub.PublishRequest{
-			// create a pubsub message with the data
-			Messages: []*pubsub.PubsubMessage{
-				{
-					Data: message,
-				},
+
+	do := &pubsub.PublishResponse{}
+
+	// publish the message to the topic
+	do, err = p.service.Projects.Topics.Publish(p.topic, &pubsub.PublishRequest{
+		// create a pubsub message with the data
+		Messages: []*pubsub.PubsubMessage{
+			{
+				Data: message,
 			},
-		}).Do()
-		if err != nil {
-			return
-		}
+		},
+	}).Do()
+	if err != nil {
+		return nil, err
 	}
+
+	return do, nil
 }
