@@ -1,51 +1,59 @@
 package gcp
 
 import (
+	"cloud.google.com/go/pubsub"
 	"context"
-	"google.golang.org/api/pubsub/v1"
+	"errors"
+	"google.golang.org/api/option"
 )
 
-type PubSubService struct {
-	service      *pubsub.Service
-	project      string
-	topic        string
-	subscription string
+type PubSubClient struct {
+	client       *pubsub.Client
+	projectID    string
+	topic        *pubsub.Topic
+	subscription *pubsub.Subscription
 	ctx          context.Context
-	err          error
+	options      option.ClientOption
 }
 
-func NewPubSubService(project, topic, subscription string, ctx context.Context) *PubSubService {
-	service, err := pubsub.NewService(ctx)
+func NewPubSubClient(projectID string, ctx context.Context, options *option.ClientOption) (*PubSubClient, error) {
+	if options != nil {
+		opts := *options
+		client, err := pubsub.NewClient(ctx, projectID, opts)
 
-	return &PubSubService{
-		service:      service,
-		project:      project,
-		topic:        topic,
-		subscription: subscription,
-		ctx:          ctx,
-		err:          err,
+		if err != nil {
+			return nil, err
+		}
+
+		return &PubSubClient{
+			client:    client,
+			projectID: projectID,
+			ctx:       ctx,
+			options:   opts,
+		}, nil
+	} else {
+		client, err := pubsub.NewClient(ctx, projectID)
+
+		if err != nil {
+			return nil, err
+		}
+
+		return &PubSubClient{
+			client:    client,
+			projectID: projectID,
+			ctx:       ctx,
+		}, nil
 	}
 }
 
-func (p *PubSubService) WriteMessage(message string) (resp *pubsub.PublishResponse, err error) {
-	if p.err != nil {
-		return
+func (p *PubSubClient) WriteMessage(message string) (*pubsub.PublishResult, error) {
+	if p != nil {
+		return nil, errors.New("PubSubClient is nil")
 	}
 
-	do := &pubsub.PublishResponse{}
+	result := p.topic.Publish(p.ctx, &pubsub.Message{
+		Data: []byte(message),
+	})
 
-	// publish the message to the topic
-	do, err = p.service.Projects.Topics.Publish(p.topic, &pubsub.PublishRequest{
-		// create a pubsub message with the data
-		Messages: []*pubsub.PubsubMessage{
-			{
-				Data: message,
-			},
-		},
-	}).Do()
-	if err != nil {
-		return nil, err
-	}
-
-	return do, nil
+	return result, nil
 }
