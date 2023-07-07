@@ -29,33 +29,6 @@ type PubSubClient struct {
 	closed bool
 }
 
-// GracefulClose closes the client and stops publish operations in all topics associated with the client.
-// All outstanding publish operations will be completed before the client is closed.
-// If the PubSubClient object is nil, an error will be returned.
-// If an error occurs while closing the client, it will be returned.
-// Parameters:
-// - None.
-// Returns:
-// - An error.
-func (p *PubSubClient) GracefulClose() error {
-	if p == nil {
-		return errors.New("PubSubClient cannot be nil")
-	}
-
-	if len(p.topics) > 0 {
-		for _, topic := range p.topics {
-			topic.Stop()
-		}
-	}
-
-	if err := p.client.Close(); err != nil {
-		return err
-	}
-
-	p.closed = true
-	return nil
-}
-
 // NewPubSubClient creates a new PubSubClient and returns a pointer to it.
 // It accepts the project ID of the project that the client will be associated with, a context, and an optional ClientOption object reference.
 // If the ClientOption object reference is nil, the client will be created with the default options.
@@ -96,6 +69,33 @@ func NewPubSubClient(projectID string, ctx context.Context, options *option.Clie
 		ctx:       ctx,
 		options:   opts,
 	}, nil
+}
+
+// GracefulClose closes the client and stops publish operations in all topics associated with the client.
+// All outstanding publish operations will be completed before the client is closed.
+// If the PubSubClient object is nil, an error will be returned.
+// If an error occurs while closing the client, it will be returned.
+// Parameters:
+// - None.
+// Returns:
+// - An error.
+func (p *PubSubClient) GracefulClose() error {
+	if p == nil {
+		return errors.New("PubSubClient cannot be nil")
+	}
+
+	if len(p.topics) > 0 {
+		for _, topic := range p.topics {
+			topic.Stop()
+		}
+	}
+
+	if err := p.client.Close(); err != nil {
+		return err
+	}
+
+	p.closed = true
+	return nil
 }
 
 // GetTopicsFromClient gets all topics available from the client and adds them to the topics map in the PubSubClient object.
