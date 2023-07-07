@@ -17,9 +17,9 @@ type PubSubClient struct {
 	client *pubsub.Client
 	// projectID is the project ID of the project that the client is associated with.
 	projectID string
-	// The topic that the client will publish messages to.
+	// The topics that the client will publish messages to or receive messages from. The key is the topic ID and the value is the topic object.
 	topics map[string]*pubsub.Topic
-	// The subscription that the client will receive messages from.
+	// The subscriptions that the client will receive messages from. The key is the subscription ID and the value is the subscription object.
 	subscriptions map[string]*pubsub.Subscription
 	// ctx is the context used to create the client.
 	ctx context.Context
