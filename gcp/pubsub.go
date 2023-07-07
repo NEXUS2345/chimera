@@ -25,6 +25,35 @@ type PubSubClient struct {
 	ctx context.Context
 	// The options used to create the client.
 	options option.ClientOption
+	// The status of the client. If the client is closed, the status will be true.
+	closed bool
+}
+
+// GracefulClose closes the client and stops publish operations in all topics associated with the client.
+// All outstanding publish operations will be completed before the client is closed.
+// If the PubSubClient object is nil, an error will be returned.
+// If an error occurs while closing the client, it will be returned.
+// Parameters:
+// - None.
+// Returns:
+// - An error.
+func (p *PubSubClient) GracefulClose() error {
+	if p == nil {
+		return errors.New("PubSubClient cannot be nil")
+	}
+
+	if len(p.topics) > 0 {
+		for _, topic := range p.topics {
+			topic.Stop()
+		}
+	}
+
+	if err := p.client.Close(); err != nil {
+		return err
+	}
+
+	p.closed = true
+	return nil
 }
 
 // NewPubSubClient creates a new PubSubClient and returns a pointer to it.
