@@ -74,7 +74,7 @@ func NewPubSubClient(projectID string, ctx context.Context, options *option.Clie
 // If the PubSubClient object is nil, an error will be returned.
 // If an error occurs while getting the topics, it will be returned.
 // Parameters:
-// - None.
+// - ctx: The context used to get the topics.
 // Returns:
 // - An error.
 func (p *PubSubClient) GetTopicsFromClient(ctx context.Context) error {
@@ -116,6 +116,7 @@ func (p *PubSubClient) GetTopicsFromClient(ctx context.Context) error {
 // If the PubSubClient object is nil or the topic name is empty, an error will be returned.
 // If the topic does not exist, an error will be returned.
 // Parameters:
+// - ctx: The context used to open the topic.
 // - topicID: The ID of the topic in string format.
 // Returns:
 // - An error.
@@ -147,6 +148,7 @@ func (p *PubSubClient) OpenTopic(ctx context.Context, topicID string) error {
 // If the PubSubClient object is nil or the slice of topic IDs is empty, an error will be returned.
 // If any of the topics do not exist, an error will be returned.
 // Parameters:
+// - ctx: The context used to open the topics.
 // - topicIDs: A slice of topic IDs in string format.
 // Returns:
 // - An error.
@@ -176,6 +178,7 @@ func (p *PubSubClient) OpenManyTopics(ctx context.Context, topicIDs []string) er
 // If the PubSubClient object is nil or the subscription name is empty, an error will be returned.
 // If the subscription does not exist, an error will be returned.
 // Parameters:
+// - ctx: The context used to open the subscription.
 // - subscriptionID: The name of the subscription in string format.
 // Returns:
 // - An error.
@@ -207,6 +210,7 @@ func (p *PubSubClient) OpenSubscription(ctx context.Context, subscriptionID stri
 // If the PubSubClient object is nil or the slice of subscription IDs is empty, an error will be returned.
 // If any of the subscriptions do not exist, an error will be returned.
 // Parameters:
+// - ctx: The context used to open the subscriptions.
 // - subscriptionIDs: A slice of subscription IDs in string format.
 // Returns:
 // - An error.
@@ -237,6 +241,7 @@ func (p *PubSubClient) OpenManySubscriptions(ctx context.Context, subscriptionID
 // If the pointer to the ordering key is nil, the message will be published without an ordering key.
 // If an error occurs while publishing the message, it will be returned.
 // Parameters:
+// - ctx: The context used to publish the message.
 // - message: The message to be published in string format.
 // - attributes: A pointer to a map of attributes.
 // - orderingKey: A pointer to an ordering key in string format.
@@ -274,6 +279,7 @@ func (p *PubSubClient) WriteMessage(ctx context.Context, topic string, message s
 // If the pointer to the ordering key is nil, the message will be published without an ordering key.
 // If an error occurs while publishing the message, it will be returned.
 // Parameters:
+// - ctx: The context used to publish the message.
 // - message: The message to be published in encoded JSON []byte format.
 // - attributes: A pointer to a map of attributes.
 // - orderingKey: A pointer to an ordering key in string format.
