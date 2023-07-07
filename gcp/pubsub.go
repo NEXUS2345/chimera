@@ -68,6 +68,7 @@ func NewPubSubClient(projectID string, ctx context.Context, options *option.Clie
 		projectID: projectID,
 		ctx:       ctx,
 		options:   opts,
+		closed:    false,
 	}, nil
 }
 
