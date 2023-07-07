@@ -1,9 +1,12 @@
 package gcp
 
 import (
-	"cloud.google.com/go/pubsub"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+
+	"cloud.google.com/go/pubsub"
 	"google.golang.org/api/option"
 )
 
@@ -15,9 +18,9 @@ type PubSubClient struct {
 	// projectID is the project ID of the project that the client is associated with.
 	projectID string
 	// The topic that the client will publish messages to.
-	topic *pubsub.Topic
+	topics map[string]*pubsub.Topic
 	// The subscription that the client will receive messages from.
-	subscription *pubsub.Subscription
+	subscriptions map[string]*pubsub.Subscription
 	// ctx is the context used to create the client.
 	ctx context.Context
 	// The options used to create the client.
@@ -37,37 +40,199 @@ type PubSubClient struct {
 // - A pointer to a PubSubClient object.
 // - An error.
 func NewPubSubClient(projectID string, ctx context.Context, options *option.ClientOption) (*PubSubClient, error) {
-	if options != nil {
-		opts := *options
-		client, err := pubsub.NewClient(ctx, projectID, opts)
-
-		if err != nil {
-			return nil, err
-		}
-
-		return &PubSubClient{
-			client:    client,
-			projectID: projectID,
-			ctx:       ctx,
-			options:   opts,
-		}, nil
-	} else {
-		client, err := pubsub.NewClient(ctx, projectID)
-
-		if err != nil {
-			return nil, err
-		}
-
-		return &PubSubClient{
-			client:    client,
-			projectID: projectID,
-			ctx:       ctx,
-		}, nil
+	if len(projectID) == 0 {
+		return nil, errors.New("projectID cannot be empty")
 	}
+	if ctx == nil {
+		return nil, errors.New("ctx cannot be nil")
+	}
+
+	var opts option.ClientOption
+
+	if options != nil {
+		opts = *options
+	}
+
+	client, err := pubsub.NewClient(ctx, projectID, opts)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: Validate that pubsub.NewClient will accept a nil opts parameter.
+
+	return &PubSubClient{
+		client:    client,
+		projectID: projectID,
+		ctx:       ctx,
+		options:   opts,
+	}, nil
+}
+
+// GetTopicsFromClient gets all topics available from the client and adds them to the topics map in the PubSubClient object.
+// The topics will be retrieved from the project that the client is associated with.
+// If the PubSubClient object is nil, an error will be returned.
+// If an error occurs while getting the topics, it will be returned.
+// Parameters:
+// - None.
+// Returns:
+// - An error.
+func (p *PubSubClient) GetTopicsFromClient(ctx context.Context) error {
+	if p == nil {
+		return errors.New("PubSubClient cannot be nil")
+	}
+	if ctx == nil {
+		return errors.New("ctx cannot be nil")
+	}
+
+	topics := make([]*pubsub.Topic, 0)
+	it := p.client.Topics(ctx)
+	for {
+		topic, err := it.Next()
+		if err == nil {
+			topics = append(topics, topic)
+		} else if err != nil {
+			return err
+		} else {
+			break
+		}
+	}
+
+	if len(topics) == 0 {
+		return errors.New("no topics found")
+	}
+
+	p.topics = make(map[string]*pubsub.Topic)
+	for _, topic := range topics {
+		p.topics[topic.ID()] = topic
+	}
+
+	return nil
+}
+
+// OpenTopic opens a topic that the client will publish messages to or receive messages from.
+// It accepts the topic ID in string format.
+// It adds the topic to the topics map in the PubSubClient object.
+// If the PubSubClient object is nil or the topic name is empty, an error will be returned.
+// If the topic does not exist, an error will be returned.
+// Parameters:
+// - topicID: The ID of the topic in string format.
+// Returns:
+// - An error.
+func (p *PubSubClient) OpenTopic(ctx context.Context, topicID string) error {
+	if len(topicID) == 0 {
+		return errors.New("topicID cannot be empty")
+	}
+	if p == nil {
+		return errors.New("PubSubClient cannot be nil")
+	}
+	if ctx == nil {
+		return errors.New("ctx cannot be nil")
+	}
+
+	p.topics[topicID] = p.client.Topic(topicID)
+	t := p.topics[topicID]
+	if _, err := t.Exists(ctx); err != nil {
+		return err
+	} else if exists, _ := t.Exists(ctx); !exists {
+		return errors.New("topic does not exist")
+	}
+
+	return nil
+}
+
+// OpenManyTopics opens multiple topics that the client will publish messages to or receive messages from.
+// It accepts a slice of topic IDs in string format.
+// It adds the topics to the topics map in the PubSubClient object.
+// If the PubSubClient object is nil or the slice of topic IDs is empty, an error will be returned.
+// If any of the topics do not exist, an error will be returned.
+// Parameters:
+// - topicIDs: A slice of topic IDs in string format.
+// Returns:
+// - An error.
+func (p *PubSubClient) OpenManyTopics(ctx context.Context, topicIDs []string) error {
+	if len(topicIDs) == 0 {
+		return errors.New("topicIDs cannot be empty")
+	}
+	if p == nil {
+		return errors.New("PubSubClient cannot be nil")
+	}
+	if ctx == nil {
+		return errors.New("ctx cannot be nil")
+	}
+
+	for _, topicID := range topicIDs {
+		if err := p.OpenTopic(ctx, topicID); err != nil {
+			return fmt.Errorf("topicID %s returned error: %s", topicID, err.Error())
+		}
+	}
+
+	return nil
+}
+
+// OpenSubscription opens a subscription that the client will receive messages from.
+// It accepts the subscription ID in string format.
+// It adds the subscription to the subscriptions map in the PubSubClient object.
+// If the PubSubClient object is nil or the subscription name is empty, an error will be returned.
+// If the subscription does not exist, an error will be returned.
+// Parameters:
+// - subscriptionID: The name of the subscription in string format.
+// Returns:
+// - An error.
+func (p *PubSubClient) OpenSubscription(ctx context.Context, subscriptionID string) error {
+	if len(subscriptionID) == 0 {
+		return errors.New("subscriptionID cannot be empty")
+	}
+	if p == nil {
+		return errors.New("PubSubClient cannot be nil")
+	}
+	if ctx == nil {
+		return errors.New("ctx cannot be nil")
+	}
+
+	p.subscriptions[subscriptionID] = p.client.Subscription(subscriptionID)
+	s := p.subscriptions[subscriptionID]
+	if _, err := s.Exists(ctx); err != nil {
+		return err
+	} else if exists, _ := s.Exists(ctx); !exists {
+		return errors.New("subscription does not exist")
+	}
+
+	return nil
+}
+
+// OpenManySubscriptions opens multiple subscriptions that the client will receive messages from.
+// It accepts a slice of subscription IDs in string format.
+// It adds the subscriptions to the subscriptions map in the PubSubClient object.
+// If the PubSubClient object is nil or the slice of subscription IDs is empty, an error will be returned.
+// If any of the subscriptions do not exist, an error will be returned.
+// Parameters:
+// - subscriptionIDs: A slice of subscription IDs in string format.
+// Returns:
+// - An error.
+func (p *PubSubClient) OpenManySubscriptions(ctx context.Context, subscriptionIDs []string) error {
+	if len(subscriptionIDs) == 0 {
+		return errors.New("subscriptionIDs cannot be empty")
+	}
+	if p == nil {
+		return errors.New("PubSubClient cannot be nil")
+	}
+	if ctx == nil {
+		return errors.New("ctx cannot be nil")
+	}
+
+	for _, subscriptionID := range subscriptionIDs {
+		if err := p.OpenSubscription(ctx, subscriptionID); err != nil {
+			return fmt.Errorf("subscriptionID %s returned error: %s", subscriptionID, err.Error())
+		}
+	}
+
+	return nil
 }
 
 // WriteMessage publishes a message to the topic that the client is associated with.
 // It accepts the message to be published in string format, a pointer to a map of attributes, and a pointer to an ordering key.
+// If the PubSubClient object is nil or the message is empty, an error will be returned.
 // If the pointer to the map of attributes is nil, the message will be published without any attributes.
 // If the pointer to the ordering key is nil, the message will be published without an ordering key.
 // If an error occurs while publishing the message, it will be returned.
@@ -78,13 +243,67 @@ func NewPubSubClient(projectID string, ctx context.Context, options *option.Clie
 // Returns:
 // - A pointer to a PublishResult object.
 // - An error.
-func (p *PubSubClient) WriteMessage(message string, attributes *map[string]string, orderingKey *string) (*pubsub.PublishResult, error) {
+func (p *PubSubClient) WriteMessage(ctx context.Context, topic string, message string, attributes *map[string]string, orderingKey *string) (*pubsub.PublishResult, error) {
 	if p != nil {
-		return nil, errors.New("PubSubClient is nil")
+		return nil, errors.New("PubSubClient cannot be nil")
+	}
+	if p.topics[topic] == nil {
+		return nil, errors.New("topic does not exist in PubSubClient")
+	}
+	if len(message) == 0 {
+		return nil, errors.New("message cannot be empty")
+	}
+	if ctx == nil {
+		return nil, errors.New("ctx cannot be nil")
 	}
 
-	result := p.topic.Publish(p.ctx, &pubsub.Message{
+	t := p.topics[topic]
+
+	result := t.Publish(ctx, &pubsub.Message{
 		Data:        []byte(message),
+		Attributes:  *attributes,
+		OrderingKey: *orderingKey,
+	})
+	return result, nil
+}
+
+// WriteJsonMessage publishes a message in encoded JSON format to the topic that the client is associated with.
+// It accepts the message to be published in encoded JSON ([]byte) format, a pointer to a map of attributes, and a pointer to an ordering key.
+// If the PubSubClient object is nil or the JSON message is invalid, an error will be returned.
+// If the pointer to the map of attributes is nil, the message will be published without any attributes.
+// If the pointer to the ordering key is nil, the message will be published without an ordering key.
+// If an error occurs while publishing the message, it will be returned.
+// Parameters:
+// - message: The message to be published in encoded JSON []byte format.
+// - attributes: A pointer to a map of attributes.
+// - orderingKey: A pointer to an ordering key in string format.
+// Returns:
+// - A pointer to a PublishResult object.
+// - An error.
+func (p *PubSubClient) WriteJsonMessage(ctx context.Context, topic string, message []byte, attributes *map[string]string, orderingKey *string) (*pubsub.PublishResult, error) {
+	if p != nil {
+		return nil, errors.New("PubSubClient cannot be nil")
+	}
+	if p.topics[topic] == nil {
+		return nil, errors.New("topic does not exist in PubSubClient")
+	}
+	if message == nil {
+		return nil, errors.New("message cannot be nil")
+	}
+	if len(message) == 0 {
+		return nil, errors.New("message cannot be empty")
+	}
+	if !json.Valid(message) {
+		return nil, errors.New("invalid json")
+	}
+	if ctx == nil {
+		return nil, errors.New("ctx cannot be nil")
+	}
+
+	t := p.topics[topic]
+
+	result := t.Publish(ctx, &pubsub.Message{
+		Data:        message,
 		Attributes:  *attributes,
 		OrderingKey: *orderingKey,
 	})
