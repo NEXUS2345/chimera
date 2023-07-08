@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 
 	"cloud.google.com/go/pubsub"
 	"google.golang.org/api/option"
@@ -25,6 +26,8 @@ type PubSubClient struct {
 	ctx context.Context
 	// The options used to create the client.
 	options option.ClientOption
+	// Mutex to synchronize access to the topics and subscriptions maps.
+	mutex sync.Mutex
 	// The status of the client. If the client is closed, the status will be true.
 	closed bool
 }
@@ -85,11 +88,22 @@ func (p *PubSubClient) GracefulClose() error {
 		return errors.New("PubSubClient cannot be nil")
 	}
 
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	var wg sync.WaitGroup
+
 	if len(p.topics) > 0 {
 		for _, topic := range p.topics {
-			topic.Stop()
+			wg.Add(1)
+			go func(topic *pubsub.Topic) {
+				defer wg.Done()
+				topic.Stop()
+			}(topic)
 		}
 	}
+
+	wg.Wait()
 
 	if err := p.client.Close(); err != nil {
 		return err
@@ -111,6 +125,10 @@ func (p *PubSubClient) GetTopicsFromClient(ctx context.Context) error {
 	if p == nil {
 		return errors.New("PubSubClient cannot be nil")
 	}
+
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
 	if ctx == nil {
 		return errors.New("ctx cannot be nil")
 	}
@@ -151,11 +169,15 @@ func (p *PubSubClient) GetTopicsFromClient(ctx context.Context) error {
 // Returns:
 // - An error.
 func (p *PubSubClient) OpenTopic(ctx context.Context, topicID string) error {
-	if len(topicID) == 0 {
-		return errors.New("topicID cannot be empty")
-	}
 	if p == nil {
 		return errors.New("PubSubClient cannot be nil")
+	}
+
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	if len(topicID) == 0 {
+		return errors.New("topicID cannot be empty")
 	}
 	if ctx == nil {
 		return errors.New("ctx cannot be nil")
@@ -183,11 +205,12 @@ func (p *PubSubClient) OpenTopic(ctx context.Context, topicID string) error {
 // Returns:
 // - An error.
 func (p *PubSubClient) OpenManyTopics(ctx context.Context, topicIDs []string) error {
-	if len(topicIDs) == 0 {
-		return errors.New("topicIDs cannot be empty")
-	}
 	if p == nil {
 		return errors.New("PubSubClient cannot be nil")
+	}
+
+	if len(topicIDs) == 0 {
+		return errors.New("topicIDs cannot be empty")
 	}
 	if ctx == nil {
 		return errors.New("ctx cannot be nil")
@@ -213,11 +236,15 @@ func (p *PubSubClient) OpenManyTopics(ctx context.Context, topicIDs []string) er
 // Returns:
 // - An error.
 func (p *PubSubClient) OpenSubscription(ctx context.Context, subscriptionID string) error {
-	if len(subscriptionID) == 0 {
-		return errors.New("subscriptionID cannot be empty")
-	}
 	if p == nil {
 		return errors.New("PubSubClient cannot be nil")
+	}
+
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	if len(subscriptionID) == 0 {
+		return errors.New("subscriptionID cannot be empty")
 	}
 	if ctx == nil {
 		return errors.New("ctx cannot be nil")
@@ -282,6 +309,10 @@ func (p *PubSubClient) WriteMessage(ctx context.Context, topic string, message s
 	if p != nil {
 		return nil, errors.New("PubSubClient cannot be nil")
 	}
+
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
 	if p.topics[topic] == nil {
 		return nil, errors.New("topic does not exist in PubSubClient")
 	}
@@ -320,6 +351,10 @@ func (p *PubSubClient) WriteJsonMessage(ctx context.Context, topic string, messa
 	if p != nil {
 		return nil, errors.New("PubSubClient cannot be nil")
 	}
+
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
 	if p.topics[topic] == nil {
 		return nil, errors.New("topic does not exist in PubSubClient")
 	}
